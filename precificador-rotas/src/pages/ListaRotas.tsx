@@ -1,0 +1,87 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useRotas } from '../hooks/useRotas';
+import { RouteCard } from '../components/Cards/RouteCard';
+import { Input } from '../components/Forms/Input';
+import { Button } from '../components/Forms/Button';
+import { PlusCircle, Search } from 'lucide-react';
+
+const ListaRotas: React.FC = () => {
+  const navigate = useNavigate();
+  const { operacoes, filtro, setFiltro, removeOperacao } = useRotas();
+  const [statusFilter, setStatusFilter] = useState<'todas' | 'aprovada' | 'rascunho'>('todas');
+
+  const filteredByStatus = statusFilter === 'todas'
+    ? operacoes
+    : operacoes.filter(op => op.status === statusFilter);
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta operação?')) {
+      removeOperacao(id);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-100">Lista de Rotas</h1>
+        <Button onClick={() => navigate('/nova-operacao')}>
+          <div className="flex items-center gap-2">
+            <PlusCircle className="w-5 h-5" />
+            Nova Operação
+          </div>
+        </Button>
+      </div>
+
+      {/* Filtros */}
+      <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-slate-700 p-4 mb-6">
+        <div className="flex gap-4 items-end">
+          <div className="flex-1">
+            <Input
+              label="Buscar"
+              placeholder="Buscar por nome, origem ou destino..."
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value)}
+              icon={<Search className="w-4 h-4 text-gray-400" />}
+            />
+          </div>
+          <div className="flex gap-2">
+            {(['todas', 'aprovada', 'rascunho'] as const).map(status => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === status
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                }`}
+              >
+                {status === 'todas' ? 'Todas' : status === 'aprovada' ? 'Aprovadas' : 'Rascunhos'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Lista */}
+      {filteredByStatus.length === 0 ? (
+        <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-slate-700 p-8 text-center text-gray-400">
+          <p>Nenhuma operação encontrada.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredByStatus.map(op => (
+            <RouteCard
+              key={op.id}
+              operacao={op}
+              onEdit={(id) => navigate(`/editar-operacao/${id}`)}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ListaRotas;

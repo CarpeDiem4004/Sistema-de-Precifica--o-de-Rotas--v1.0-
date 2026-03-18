@@ -1,0 +1,104 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply text-gray-100;
+    background: radial-gradient(ellipse at 50% 40%, #0f172a 0%, #020617 100%);
+    position: relative;
+    min-height: 100vh;
+  }
+}
+
+/* World map background (react-simple-maps) */
+.world-map-bg-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.world-map-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.9;
+}
+
+.world-map-layer svg {
+  max-width: 110%;
+  max-height: 110%;
+}
+
+.compass-rose-layer {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  width: 220px;
+  height: 220px;
+  opacity: 0.6;
+}
+
+.compass-rose-layer img {
+  width: 100%;
+  height: 100%;
+}
+
+.route-dots-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.main-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* React Select dark theme */
+.react-select .css-13cymwt-control,
+.react-select .css-t3ipsp-control,
+.react-select [class$="-control"] {
+  background-color: rgb(51 65 85) !important;
+  border-color: rgb(71 85 105) !important;
+  min-height: 42px;
+}
+.react-select [class$="-control"]:hover {
+  border-color: rgb(100 116 139) !important;
+}
+.react-select [class$="-menu"] {
+  background-color: rgb(51 65 85) !important;
+  border: 1px solid rgb(71 85 105) !important;
+}
+.react-select [class$="-option"] {
+  background-color: transparent !important;
+  color: rgb(226 232 240) !important;
+}
+.react-select [class$="-option"]:hover,
+.react-select [class$="-option--is-focused"] {
+  background-color: rgb(71 85 105) !important;
+}
+.react-select [class$="-option--is-selected"] {
+  background-color: rgb(37 99 235) !important;
+  color: white !important;
+}
+.react-select [class$="-singleValue"] {
+  color: rgb(226 232 240) !important;
+}
+.react-select [class$="-placeholder"] {
+  color: rgb(148 163 184) !important;
+}
+.react-select [class$="-indicatorSeparator"] {
+  background-color: rgb(71 85 105) !important;
+}
+.react-select [class$="-indicator"] svg {
+  fill: rgb(148 163 184);
+}
+.react-select [class$="-input"] input {
+  color: rgb(226 232 240) !important;
+}
