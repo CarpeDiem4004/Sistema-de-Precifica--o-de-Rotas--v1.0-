@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "installCommand": "cd precificador-rotas && npm install --legacy-peer-deps",
+  "buildCommand": "cd precificador-rotas && npm run build",
+  "outputDirectory": "precificador-rotas/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
