@@ -8,16 +8,16 @@ import { PlusCircle, Search } from 'lucide-react';
 
 const ListaRotas: React.FC = () => {
   const navigate = useNavigate();
-  const { operacoes, filtro, setFiltro, removeOperacao } = useRotas();
+  const { operacoes, loading, error, filtro, setFiltro, removeOperacao } = useRotas();
   const [statusFilter, setStatusFilter] = useState<'todas' | 'aprovada' | 'rascunho'>('todas');
 
   const filteredByStatus = statusFilter === 'todas'
     ? operacoes
     : operacoes.filter(op => op.status === statusFilter);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta operação?')) {
-      removeOperacao(id);
+      await removeOperacao(id);
     }
   };
 
@@ -64,9 +64,15 @@ const ListaRotas: React.FC = () => {
       </div>
 
       {/* Lista */}
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       {filteredByStatus.length === 0 ? (
         <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-slate-700 p-8 text-center text-gray-400">
-          <p>Nenhuma operação encontrada.</p>
+          <p>{loading ? 'Carregando operações...' : 'Nenhuma operação encontrada.'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

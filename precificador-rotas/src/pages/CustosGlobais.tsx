@@ -6,15 +6,21 @@ import { formatarDataHora } from '../utils/formatadores';
 import { Save, RefreshCw } from 'lucide-react';
 
 const CustosGlobais: React.FC = () => {
-  const { custos, atualizarCustos } = useCustosGlobais();
+  const { custos, loading, error, atualizarCustos } = useCustosGlobais();
   
   const [diesel, setDiesel] = useState(custos.precoDieselLitro.toString());
   const [motorista, setMotorista] = useState(custos.custoMotoristaKm.toString());
   const [pedagio, setPedagio] = useState(custos.pedagioMedioKm.toString());
   const [salvo, setSalvo] = useState(false);
 
-  const handleSalvar = () => {
-    atualizarCustos({
+  React.useEffect(() => {
+    setDiesel(custos.precoDieselLitro.toString());
+    setMotorista(custos.custoMotoristaKm.toString());
+    setPedagio(custos.pedagioMedioKm.toString());
+  }, [custos]);
+
+  const handleSalvar = async () => {
+    await atualizarCustos({
       precoDieselLitro: Number(diesel),
       custoMotoristaKm: Number(motorista),
       pedagioMedioKm: Number(pedagio)
@@ -28,6 +34,12 @@ const CustosGlobais: React.FC = () => {
       <h1 className="text-2xl font-bold text-gray-100 mb-6">Custos Globais</h1>
 
       <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-slate-700 p-6">
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
         <p className="text-sm text-gray-400 mb-6">
           Estes valores são usados como referência para cálculos de custo operacional. 
           Ao alterar, as margens atuais de todas as rotas aprovadas serão recalculadas automaticamente.
@@ -78,7 +90,7 @@ const CustosGlobais: React.FC = () => {
         {salvo && (
           <div className="mt-4 p-3 bg-green-900/30 text-green-400 rounded-lg flex items-center gap-2">
             <RefreshCw className="w-4 h-4" />
-            Custos atualizados com sucesso! As margens serão recalculadas.
+            {loading ? 'Carregando custos...' : 'Custos atualizados com sucesso! As margens serão recalculadas.'}
           </div>
         )}
       </div>

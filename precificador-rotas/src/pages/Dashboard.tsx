@@ -8,8 +8,8 @@ import { Truck, DollarSign, TrendingUp, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard: React.FC = () => {
-  const { allOperacoes } = useRotas();
-  const { custos } = useCustosGlobais();
+  const { allOperacoes, loading: operacoesLoading, error: operacoesError } = useRotas();
+  const { custos, loading: custosLoading, error: custosError } = useCustosGlobais();
   const navigate = useNavigate();
 
   const aprovadas = allOperacoes.filter(op => op.status === 'aprovada');
@@ -31,6 +31,12 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
+      {(operacoesError || custosError) && (
+        <div className="mb-6 rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+          {operacoesError || custosError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           title="Rotas Ativas"
@@ -82,7 +88,7 @@ const Dashboard: React.FC = () => {
       <h2 className="text-lg font-semibold text-gray-100 mb-4">Últimas Operações</h2>
       {aprovadas.length === 0 ? (
         <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-slate-700 p-8 text-center text-gray-400">
-          <p>Nenhuma operação aprovada ainda.</p>
+          <p>{operacoesLoading || custosLoading ? 'Carregando dashboard...' : 'Nenhuma operação aprovada ainda.'}</p>
           <button
             onClick={() => navigate('/nova-operacao')}
             className="mt-3 text-blue-400 hover:text-blue-300 font-medium"

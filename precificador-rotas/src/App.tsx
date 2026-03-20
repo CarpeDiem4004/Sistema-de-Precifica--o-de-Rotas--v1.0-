@@ -12,7 +12,7 @@ import { initializeStorage } from './services/storageService';
 
 function App() {
   useEffect(() => {
-    initializeStorage();
+    void initializeStorage();
   }, []);
 
   return (

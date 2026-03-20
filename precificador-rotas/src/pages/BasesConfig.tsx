@@ -5,8 +5,10 @@ import { Input } from '../components/Forms/Input';
 import { Button } from '../components/Forms/Button';
 import { Search, Upload, Plus, Trash2, MapPin } from 'lucide-react';
 
+type CsvRow = Record<string, string | number | undefined | null>;
+
 const BasesConfig: React.FC = () => {
-  const { bases, allBases, searchTerm, setSearchTerm, addBase, removeBase, importBases } = useBases();
+  const { bases, allBases, loading, error, searchTerm, setSearchTerm, addBase, removeBase, importBases } = useBases();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form para nova base
@@ -15,10 +17,10 @@ const BasesConfig: React.FC = () => {
   const [nome, setNome] = useState('');
   const [endereco, setEndereco] = useState('');
 
-  const handleAddBase = () => {
+  const handleAddBase = async () => {
     if (!codigo || !endereco) return;
-    
-    addBase({
+
+    await addBase({
       id: `base_${Date.now()}`,
       codigo: codigo.toUpperCase(),
       nome,
@@ -38,8 +40,8 @@ const BasesConfig: React.FC = () => {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
-        importBases(results.data);
+      complete: async (results) => {
+        await importBases(results.data as CsvRow[]);
       },
       error: (error) => {
         console.error('Erro ao importar CSV:', error);
@@ -52,9 +54,9 @@ const BasesConfig: React.FC = () => {
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir esta base?')) {
-      removeBase(id);
+      await removeBase(id);
     }
   };
 
@@ -125,6 +127,12 @@ const BasesConfig: React.FC = () => {
 
       {/* Busca */}
       <div className="mb-4">
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
         <Input
           placeholder="Buscar por código, nome ou endereço..."
           value={searchTerm}
@@ -154,7 +162,7 @@ const BasesConfig: React.FC = () => {
             {bases.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
-                  Nenhuma base encontrada.
+                  {loading ? 'Carregando bases...' : 'Nenhuma base encontrada.'}
                 </td>
               </tr>
             ) : (

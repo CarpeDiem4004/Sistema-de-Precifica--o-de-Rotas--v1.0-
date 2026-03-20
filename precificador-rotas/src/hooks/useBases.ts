@@ -1,21 +1,35 @@
 import { useState, useEffect } from 'react';
 import type { Base } from '../types';
-import { getBases, saveBases, importBasesFromCSV } from '../services/storageService';
+import { getBases, createBase, deleteBase, importBasesFromCSV } from '../services/storageService';
+
+type CsvRow = Record<string, string | number | undefined | null>;
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Erro ao carregar bases';
+}
 
 export function useBases() {
   const [bases, setBases] = useState<Base[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadBases();
+    void loadBases();
   }, []);
 
-  const loadBases = () => {
+  const loadBases = async () => {
     setLoading(true);
-    const loadedBases = getBases();
-    setBases(loadedBases);
-    setLoading(false);
+    setError(null);
+
+    try {
+      const loadedBases = await getBases();
+      setBases(loadedBases);
+    } catch (loadError) {
+      setError(getErrorMessage(loadError));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredBases = bases.filter(base =>
@@ -24,20 +38,18 @@ export function useBases() {
     base.endereco.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const addBase = (base: Base) => {
-    const newBases = [...bases, base];
-    saveBases(newBases);
-    setBases(newBases);
+  const addBase = async (base: Base) => {
+    const created = await createBase(base);
+    setBases((prev) => [...prev, created]);
   };
 
-  const removeBase = (id: string) => {
-    const newBases = bases.filter(b => b.id !== id);
-    saveBases(newBases);
-    setBases(newBases);
+  const removeBase = async (id: string) => {
+    await deleteBase(id);
+    setBases((prev) => prev.filter((base) => base.id !== id));
   };
 
-  const importBases = (csvData: any[]) => {
-    const imported = importBasesFromCSV(csvData);
+  const importBases = async (csvData: CsvRow[]) => {
+    const imported = await importBasesFromCSV(csvData);
     setBases(imported);
   };
 
@@ -49,6 +61,7 @@ export function useBases() {
     bases: filteredBases,
     allBases: bases,
     loading,
+    error,
     searchTerm,
     setSearchTerm,
     addBase,

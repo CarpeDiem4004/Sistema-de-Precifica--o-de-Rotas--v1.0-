@@ -9,15 +9,21 @@ import { getDistanceAndTime } from '../services/googleMapsService';
 import { calcularCustoOperacional, calcularMargem, calcularValorVendaPorMargem } from '../services/calculosService';
 import { AlertCircle, Truck, Users } from 'lucide-react';
 
+type BaseOption = {
+  value: string;
+  label: string;
+};
+
 const NovaOperacao: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { allBases, getBaseByCodigo } = useBases();
-  const { getOperacaoById, addOperacao, updateOperacao } = useRotas();
+  const { allBases, loading: basesLoading, error: basesError, getBaseByCodigo } = useBases();
+  const { allOperacoes, loading: operacoesLoading, error: operacoesError, getOperacaoById, addOperacao, updateOperacao } = useRotas();
 
   const [loading, setLoading] = useState(false);
-  const [origem, setOrigem] = useState<any>(null);
-  const [destino, setDestino] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [origem, setOrigem] = useState<BaseOption | null>(null);
+  const [destino, setDestino] = useState<BaseOption | null>(null);
   const [distancia, setDistancia] = useState<number | null>(null);
   const [tempo, setTempo] = useState<string>('');
   const [erroRota, setErroRota] = useState('');
@@ -57,7 +63,7 @@ const NovaOperacao: React.FC = () => {
   // Carregar operação para edição
   useEffect(() => {
     if (id) {
-      const operacao = getOperacaoById(id);
+      const operacao = allOperacoes.find((item) => item.id === id);
       if (operacao) {
         setNomeOperacao(operacao.nomeOperacao);
         setOrigem({ value: operacao.codigoOrigem, label: `${operacao.codigoOrigem} - ${operacao.enderecoOrigem || ''}` });
@@ -72,7 +78,7 @@ const NovaOperacao: React.FC = () => {
         if (operacao.valorAgregado) setValorAgregado(operacao.valorAgregado.toString());
       }
     }
-  }, [id]);
+  }, [id, allOperacoes]);
 
   // Recalcular quando valores mudam
   useEffect(() => {
@@ -131,8 +137,10 @@ const NovaOperacao: React.FC = () => {
     }
   };
 
-  const handleSalvar = (status: 'rascunho' | 'aprovada') => {
+  const handleSalvar = async (status: 'rascunho' | 'aprovada') => {
     if (!origem || !destino || !distancia) return;
+
+    setSaving(true);
 
     const baseOrigem = getBaseByCodigo(origem.value);
     const baseDestino = getBaseByCodigo(destino.value);
@@ -171,11 +179,12 @@ const NovaOperacao: React.FC = () => {
     };
 
     if (id) {
-      updateOperacao(operacao);
+      await updateOperacao(operacao);
     } else {
-      addOperacao(operacao);
+      await addOperacao(operacao);
     }
 
+    setSaving(false);
     navigate('/lista-rotas');
   };
 
@@ -193,6 +202,12 @@ const NovaOperacao: React.FC = () => {
       </h1>
 
       <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg shadow-lg border border-slate-700 p-6">
+        {(basesError || operacoesError) && (
+          <div className="mb-4 rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+            {basesError || operacoesError}
+          </div>
+        )}
+
         {/* Nome da Operação */}
         <div className="mb-6">
           <Input
@@ -215,6 +230,7 @@ const NovaOperacao: React.FC = () => {
               onChange={setOrigem}
               placeholder="Selecione a origem"
               className="react-select"
+              isLoading={basesLoading}
             />
           </div>
 
@@ -228,6 +244,7 @@ const NovaOperacao: React.FC = () => {
               onChange={setDestino}
               placeholder="Selecione o destino"
               className="react-select"
+              isLoading={basesLoading}
             />
           </div>
         </div>
@@ -458,15 +475,16 @@ const NovaOperacao: React.FC = () => {
           </Button>
 
           <Button variant="secondary" onClick={() => handleSalvar('rascunho')}>
+            disabled={saving || basesLoading || operacoesLoading}
             Salvar Rascunho
           </Button>
 
           <Button
             variant="success"
             onClick={() => handleSalvar('aprovada')}
-            disabled={!valorVenda || !distancia}
+            disabled={!valorVenda || !distancia || saving || basesLoading || operacoesLoading}
           >
-            Aprovar e Salvar
+            {saving ? 'Salvando...' : 'Aprovar e Salvar'}
           </Button>
         </div>
       </div>
