@@ -28,19 +28,11 @@ import { buildTenantPath, getEmpresaSlug, getSubdomainTenantSlug, stripTenantFro
 
 function LoadingScreen() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-red-950 flex-col gap-6">
-      <div className="animate-spin rounded-full h-16 w-16 border-4 border-red-700 border-t-white" />
-      <h1 className="text-3xl font-bold text-white">CARREGANDO...</h1>
-      <p className="text-red-300 text-center max-w-md">
-        Se você está vendo esta tela vermelha, o problema é que o AuthContext<br />
-        está preso no estado de loading.
-      </p>
-      <button 
-        onClick={() => window.location.reload()}
-        className="px-6 py-3 bg-white text-black rounded-lg font-medium"
-      >
-        Recarregar página
-      </button>
+    <div className="flex min-h-screen items-center justify-center bg-slate-950">
+      <div className="flex flex-col items-center gap-4">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-700 border-t-blue-500" />
+        <p className="text-sm text-slate-500">Carregando...</p>
+      </div>
     </div>
   );
 }

@@ -235,6 +235,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let active = true;
 
+    // Garante que o loading sempre termina, mesmo que o Supabase demore ou trave
+    const loadingTimeout = setTimeout(() => {
+      if (active) setLoading(false);
+    }, 8000);
+
     void (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -260,6 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setPerfil(null);
         }
       } finally {
+        clearTimeout(loadingTimeout);
         if (active) {
           setLoading(false);
         }
@@ -302,6 +308,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       active = false;
+      clearTimeout(loadingTimeout);
       subscription.unsubscribe();
     };
   }, []);
