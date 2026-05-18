@@ -46,6 +46,7 @@ export const mockOperacoes: Operacao[] = [
   {
     id: '1',
     nomeOperacao: 'SP-RJ - Cliente ABC - Março/2026',
+    ativo: true,
     userId: 'user1',
     createdAt: '2026-03-15T10:30:00',
     criadoPor: 'João Paulo',
@@ -66,6 +67,38 @@ export const mockOperacoes: Operacao[] = [
     margemOriginalPercent: 27.05,
     margemAtualPercent: 24.8,
     lucroAtual: 620,
-    status: 'aprovada'
+    status: 'aprovada',
+    historicoAlteracoes: [
+      {
+        data: '2026-03-15T10:30:00',
+        usuario: 'João Paulo',
+        alteracoes: [
+          {
+            campo: 'Nome da operação',
+            antes: 'N/A',
+            depois: 'SP-RJ - Cliente ABC - Março/2026',
+            direcao: 'alterado'
+          },
+          {
+            campo: 'Status',
+            antes: 'Rascunho',
+            depois: 'Aprovada',
+            direcao: 'alterado'
+          }
+        ]
+      },
+      {
+        data: '2026-03-20T14:15:00',
+        usuario: 'João Paulo',
+        alteracoes: [
+          {
+            campo: 'Margem atual',
+            antes: '27,05%',
+            depois: '24,80%',
+            direcao: 'diminuiu'
+          }
+        ]
+      }
+    ]
   }
 ];

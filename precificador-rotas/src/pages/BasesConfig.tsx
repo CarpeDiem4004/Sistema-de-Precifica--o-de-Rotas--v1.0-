@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import Papa from 'papaparse';
 import { useBases } from '../hooks/useBases';
+import { useAuth } from '../contexts/AuthContext';
 import { Input } from '../components/Forms/Input';
 import { Button } from '../components/Forms/Button';
 import { Search, Upload, Plus, Trash2, MapPin } from 'lucide-react';
@@ -8,6 +9,7 @@ import { Search, Upload, Plus, Trash2, MapPin } from 'lucide-react';
 type CsvRow = Record<string, string | number | undefined | null>;
 
 const BasesConfig: React.FC = () => {
+  const { canEdit, isSuspended } = useAuth();
   const { bases, allBases, loading, error, searchTerm, setSearchTerm, addBase, removeBase, importBases } = useBases();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,13 +77,14 @@ const BasesConfig: React.FC = () => {
           <Button
             variant="secondary"
             onClick={() => fileInputRef.current?.click()}
+            disabled={!canEdit}
           >
             <div className="flex items-center gap-2">
               <Upload className="w-4 h-4" />
               Importar CSV
             </div>
           </Button>
-          <Button onClick={() => setShowForm(!showForm)}>
+          <Button onClick={() => setShowForm(!showForm)} disabled={!canEdit}>
             <div className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
               Nova Base
@@ -89,6 +92,12 @@ const BasesConfig: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {isSuspended && (
+        <div className="mb-6 rounded-lg border border-amber-800 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+          Empresa suspensa: a consulta das bases continua disponível, mas cadastro, importação e exclusão estão bloqueados.
+        </div>
+      )}
 
       {/* Formulário de nova base */}
       {showForm && (
@@ -100,22 +109,25 @@ const BasesConfig: React.FC = () => {
               value={codigo}
               onChange={(e) => setCodigo(e.target.value)}
               placeholder="Ex: SP003"
+              disabled={!canEdit}
             />
             <Input
               label="Nome"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               placeholder="Ex: Base São Paulo - Leste"
+              disabled={!canEdit}
             />
             <Input
               label="Endereço"
               value={endereco}
               onChange={(e) => setEndereco(e.target.value)}
               placeholder="Ex: Av. Paulista, 1000 - São Paulo, SP"
+              disabled={!canEdit}
             />
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleAddBase} disabled={!codigo || !endereco}>
+            <Button onClick={handleAddBase} disabled={!codigo || !endereco || !canEdit}>
               Adicionar
             </Button>
             <Button variant="secondary" onClick={() => setShowForm(false)}>
@@ -184,7 +196,8 @@ const BasesConfig: React.FC = () => {
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => handleDelete(base.id)}
-                      className="text-red-400 hover:text-red-300 p-1"
+                      className="text-red-400 hover:text-red-300 p-1 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={!canEdit}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

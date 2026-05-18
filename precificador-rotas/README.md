@@ -1,73 +1,56 @@
-# React + TypeScript + Vite
+# Precificador de Rotas
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicação React + Vite para precificação logística, agora preparada para arquitetura multi-tenant com Supabase.
 
-Currently, two official plugins are available:
+## Documentação principal
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Migração segura do banco legado: [docs/safe-migration-checklist.md](docs/safe-migration-checklist.md)
+- Domínio wildcard e Vercel: [docs/wildcard-domain-vercel.md](docs/wildcard-domain-vercel.md)
+- Schema alvo do Supabase: [supabase/schema.sql](supabase/schema.sql)
+- Migração do single-tenant para empresa: [supabase/migrations/001_safe_migration_from_single_tenant.sql](supabase/migrations/001_safe_migration_from_single_tenant.sql)
+- Módulo administrativo global: [supabase/migrations/002_admin_panel.sql](supabase/migrations/002_admin_panel.sql)
+- Relatório rápido de validação do admin: [supabase/migrations/999_admin_validation_report.sql](supabase/migrations/999_admin_validation_report.sql)
 
-## React Compiler
+## Variáveis de ambiente
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Use como base o arquivo [.env.example](.env.example).
 
-## Expanding the ESLint configuration
+Variáveis mínimas:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- `VITE_GOOGLE_MAPS_API_KEY`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_APP_URL`
+- `VITE_ADMIN_EMAILS` (fallback de visibilidade do painel admin no frontend)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Painel administrativo global
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Rotas adicionadas:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- `/admin/dashboard`
+- `/admin/empresas`
+- `/admin/logs`
+- `/admin/notificacoes`
+
+Pré-requisitos para acesso:
+
+1. Rodar a migration [supabase/migrations/002_admin_panel.sql](supabase/migrations/002_admin_panel.sql).
+2. Cadastrar pelo menos um admin de sistema na tabela `public.system_admins`.
+
+Exemplo de seed inicial:
+
+```sql
+insert into public.system_admins (user_id, email)
+select id, email
+from auth.users
+where email = 'admin@precificador.com'
+on conflict (user_id) do update set
+	email = excluded.email,
+	ativo = true;
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Scripts
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- `npm run dev`
+- `npm run build`
+- `npm run preview`

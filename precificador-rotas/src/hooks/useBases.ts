@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Base } from '../types';
 import { getBases, createBase, deleteBase, importBasesFromCSV } from '../services/storageService';
+import { useAuth } from '../contexts/AuthContext';
 
 type CsvRow = Record<string, string | number | undefined | null>;
 
@@ -9,28 +10,45 @@ function getErrorMessage(error: unknown) {
 }
 
 export function useBases() {
+  const { empresa, loading: authLoading, canEdit } = useAuth();
   const [bases, setBases] = useState<Base[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void loadBases();
-  }, []);
+  const loadBases = useCallback(async () => {
+    if (!empresa) {
+      setBases([]);
+      setLoading(false);
+      return;
+    }
 
-  const loadBases = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const loadedBases = await getBases();
+      const loadedBases = await getBases(empresa.id);
       setBases(loadedBases);
     } catch (loadError) {
       setError(getErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  };
+  }, [empresa]);
+
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!empresa) {
+      setBases([]);
+      setLoading(false);
+      return;
+    }
+
+    void loadBases();
+  }, [authLoading, empresa, loadBases]);
 
   const filteredBases = bases.filter(base =>
     base.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -39,17 +57,41 @@ export function useBases() {
   );
 
   const addBase = async (base: Base) => {
-    const created = await createBase(base);
+    if (!empresa) {
+      throw new Error('Empresa não encontrada. Faça login novamente.');
+    }
+
+    if (!canEdit) {
+      throw new Error('Empresa suspensa. Não é permitido criar ou editar bases.');
+    }
+
+    const created = await createBase(empresa.id, base);
     setBases((prev) => [...prev, created]);
   };
 
   const removeBase = async (id: string) => {
-    await deleteBase(id);
+    if (!empresa) {
+      throw new Error('Empresa não encontrada. Faça login novamente.');
+    }
+
+    if (!canEdit) {
+      throw new Error('Empresa suspensa. Não é permitido excluir bases.');
+    }
+
+    await deleteBase(empresa.id, id);
     setBases((prev) => prev.filter((base) => base.id !== id));
   };
 
   const importBases = async (csvData: CsvRow[]) => {
-    const imported = await importBasesFromCSV(csvData);
+    if (!empresa) {
+      throw new Error('Empresa não encontrada. Faça login novamente.');
+    }
+
+    if (!canEdit) {
+      throw new Error('Empresa suspensa. Não é permitido importar bases.');
+    }
+
+    const imported = await importBasesFromCSV(empresa.id, csvData);
     setBases(imported);
   };
 

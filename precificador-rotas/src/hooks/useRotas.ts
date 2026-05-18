@@ -1,28 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Operacao } from '../types';
 import { getOperacoes, saveOperacao, deleteOperacao } from '../services/storageService';
 import { calcularCustoOperacional, calcularMargem } from '../services/calculosService';
+import { useAuth } from '../contexts/AuthContext';
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Erro ao carregar operações';
 }
 
 export function useRotas() {
+  const { empresa, perfil, loading: authLoading, canEdit } = useAuth();
   const [operacoes, setOperacoes] = useState<Operacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void loadOperacoes();
-  }, []);
+  const loadOperacoes = useCallback(async () => {
+    if (!empresa) {
+      setOperacoes([]);
+      setLoading(false);
+      return;
+    }
 
-  const loadOperacoes = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const loaded = await getOperacoes();
+      const loaded = await getOperacoes(empresa.id);
 
       const comMargensAtuais = loaded.map(op => {
         if (op.status === 'aprovada') {
@@ -53,7 +57,21 @@ export function useRotas() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [empresa]);
+
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!empresa) {
+      setOperacoes([]);
+      setLoading(false);
+      return;
+    }
+
+    void loadOperacoes();
+  }, [authLoading, empresa, loadOperacoes]);
 
   const filteredOperacoes = operacoes.filter(op =>
     op.nomeOperacao.toLowerCase().includes(filtro.toLowerCase()) ||
@@ -62,18 +80,81 @@ export function useRotas() {
   );
 
   const addOperacao = async (operacao: Operacao) => {
-    const saved = await saveOperacao(operacao);
+    if (!empresa || !perfil) {
+      throw new Error('Usuário não autenticado para salvar operação.');
+    }
+
+    if (!canEdit) {
+      throw new Error('Empresa suspensa. Não é permitido criar ou editar operações.');
+    }
+
+    const saved = await saveOperacao({
+      empresaId: empresa.id,
+      usuarioId: perfil.id,
+      usuarioNome: perfil.nome
+    }, operacao);
     setOperacoes((prev) => [...prev, saved]);
   };
 
   const updateOperacao = async (operacao: Operacao) => {
-    const saved = await saveOperacao(operacao);
+    if (!empresa || !perfil) {
+      throw new Error('Usuário não autenticado para atualizar operação.');
+    }
+
+    if (!canEdit) {
+      throw new Error('Empresa suspensa. Não é permitido criar ou editar operações.');
+    }
+
+    const saved = await saveOperacao({
+      empresaId: empresa.id,
+      usuarioId: perfil.id,
+      usuarioNome: perfil.nome
+    }, operacao);
     setOperacoes((prev) => prev.map((op) => op.id === saved.id ? saved : op));
   };
 
   const removeOperacao = async (id: string) => {
-    await deleteOperacao(id);
+    if (!empresa) {
+      throw new Error('Empresa não encontrada. Faça login novamente.');
+    }
+
+    if (!canEdit) {
+      throw new Error('Empresa suspensa. Não é permitido excluir operações.');
+    }
+
+    await deleteOperacao(empresa.id, id);
     setOperacoes((prev) => prev.filter((op) => op.id !== id));
+  };
+
+  const setOperacaoAtiva = async (id: string, ativo: boolean) => {
+    if (!empresa || !perfil) {
+      throw new Error('Usuário não autenticado para alterar status da rota.');
+    }
+
+    if (!canEdit) {
+      throw new Error('Empresa suspensa. Não é permitido alterar status de rotas.');
+    }
+
+    const operacaoAtual = operacoes.find((op) => op.id === id);
+
+    if (!operacaoAtual) {
+      throw new Error('Operação não encontrada.');
+    }
+
+    const operacaoAtualizada: Operacao = {
+      ...operacaoAtual,
+      ativo,
+      editadoPor: perfil.nome,
+      dataEdicao: new Date().toISOString()
+    };
+
+    const saved = await saveOperacao({
+      empresaId: empresa.id,
+      usuarioId: perfil.id,
+      usuarioNome: perfil.nome
+    }, operacaoAtualizada);
+
+    setOperacoes((prev) => prev.map((op) => op.id === saved.id ? saved : op));
   };
 
   const getOperacaoById = (id: string): Operacao | undefined => {
@@ -90,6 +171,7 @@ export function useRotas() {
     addOperacao,
     updateOperacao,
     removeOperacao,
+    setOperacaoAtiva,
     getOperacaoById,
     refresh: loadOperacoes
   };

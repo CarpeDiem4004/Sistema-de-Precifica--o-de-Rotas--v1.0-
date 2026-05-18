@@ -6,6 +6,7 @@ interface StatCardProps {
   icon: React.ReactNode;
   color?: 'blue' | 'green' | 'yellow' | 'red' | 'purple';
   subtitle?: string;
+  onClick?: () => void;
 }
 
 const colorMap = {
@@ -21,10 +22,22 @@ export const StatCard: React.FC<StatCardProps> = ({
   value,
   icon,
   color = 'blue',
-  subtitle
+  subtitle,
+  onClick
 }) => {
   return (
-    <div className="bg-slate-800/80 backdrop-blur-sm rounded-lg shadow-lg p-6 border border-slate-700">
+    <div
+      className={`bg-slate-800/80 backdrop-blur-sm rounded-lg shadow-lg p-6 border border-slate-700 ${onClick ? 'cursor-pointer hover:border-slate-500 transition-colors' : ''}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      } : undefined}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-400">{title}</p>

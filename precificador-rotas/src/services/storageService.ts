@@ -1,19 +1,26 @@
-import type { Base, Operacao, CustoGlobal } from '../types';
-import { mockBases, mockOperacoes, mockCustosGlobais } from '../data/mockData';
+import type { Base, CustoGlobal, HistoricoAlteracaoOperacao, Operacao } from '../types';
+import { mockBases, mockCustosGlobais, mockOperacoes } from '../data/mockData';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 const STORAGE_KEYS = {
   BASES: '@precificador:bases',
   OPERACOES: '@precificador:operacoes',
-  CUSTOS_GLOBAIS: '@precificador:custosGlobais'
+  CUSTOS_GLOBAIS: '@precificador:custosGlobais',
+  OPERACOES_HISTORICO: '@precificador:operacoesHistorico',
+  OPERACOES_ATIVO: '@precificador:operacoesAtivo'
 };
 
-const DEFAULT_CUSTOS_ID = 'default';
+export type CsvRow = Record<string, string | number | undefined | null>;
 
-let initializationPromise: Promise<void> | null = null;
+type TenantScope = {
+  empresaId: string;
+  usuarioId?: string;
+  usuarioNome?: string;
+};
 
 type BaseRow = {
   id: string;
+  empresa_id: string;
   codigo: string;
   nome: string;
   endereco: string;
@@ -23,13 +30,12 @@ type BaseRow = {
 
 type OperacaoRow = {
   id: string;
+  empresa_id: string;
+  usuario_id: string;
+  ativo?: boolean;
   nome_operacao: string;
-  user_id: string;
-  created_at: string;
-  data_aprovacao: string | null;
   criado_por: string;
   editado_por: string | null;
-  data_edicao: string | null;
   codigo_origem: string;
   codigo_destino: string;
   endereco_origem: string | null;
@@ -51,41 +57,121 @@ type OperacaoRow = {
   margem_original_percent: number;
   margem_atual_percent: number | null;
   lucro_atual: number | null;
+  historico_alteracoes?: HistoricoAlteracaoOperacao[] | string | null;
   status: 'rascunho' | 'aprovada';
+  data_aprovacao: string | null;
+  criado_em: string;
+  atualizado_em: string;
 };
 
 type CustoGlobalRow = {
-  id: string;
+  empresa_id: string;
   preco_diesel_litro: number;
   custo_motorista_km: number;
   pedagio_medio_km: number;
   data_atualizacao: string;
 };
 
-type CsvRow = Record<string, string | number | undefined | null>;
+function getStorageKey(baseKey: string, empresaId: string) {
+  return `${baseKey}:${empresaId}`;
+}
 
 function readLocalStorage<T>(key: string, fallback: T): T {
   const data = localStorage.getItem(key);
   return data ? JSON.parse(data) : fallback;
 }
 
-function localInitializeStorage() {
-  if (!localStorage.getItem(STORAGE_KEYS.BASES)) {
-    localStorage.setItem(STORAGE_KEYS.BASES, JSON.stringify(mockBases));
+function writeLocalStorage<T>(key: string, value: T) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function initializeLocalStorage(empresaId: string) {
+  const basesKey = getStorageKey(STORAGE_KEYS.BASES, empresaId);
+  const operacoesKey = getStorageKey(STORAGE_KEYS.OPERACOES, empresaId);
+  const custosKey = getStorageKey(STORAGE_KEYS.CUSTOS_GLOBAIS, empresaId);
+  const historicoKey = getStorageKey(STORAGE_KEYS.OPERACOES_HISTORICO, empresaId);
+  const ativoKey = getStorageKey(STORAGE_KEYS.OPERACOES_ATIVO, empresaId);
+
+  if (!localStorage.getItem(basesKey)) {
+    writeLocalStorage(basesKey, mockBases);
   }
 
-  if (!localStorage.getItem(STORAGE_KEYS.OPERACOES)) {
-    localStorage.setItem(STORAGE_KEYS.OPERACOES, JSON.stringify(mockOperacoes));
+  if (!localStorage.getItem(operacoesKey)) {
+    writeLocalStorage(operacoesKey, mockOperacoes);
   }
 
-  if (!localStorage.getItem(STORAGE_KEYS.CUSTOS_GLOBAIS)) {
-    localStorage.setItem(STORAGE_KEYS.CUSTOS_GLOBAIS, JSON.stringify(mockCustosGlobais));
+  if (!localStorage.getItem(custosKey)) {
+    writeLocalStorage(custosKey, mockCustosGlobais);
+  }
+
+  if (!localStorage.getItem(historicoKey)) {
+    writeLocalStorage<Record<string, HistoricoAlteracaoOperacao[]>>(historicoKey, {});
+  }
+
+  if (!localStorage.getItem(ativoKey)) {
+    writeLocalStorage<Record<string, boolean>>(ativoKey, {});
   }
 }
 
-function toBaseRow(base: Base): BaseRow {
+function readOperacoesHistorico(empresaId: string) {
+  return readLocalStorage<Record<string, HistoricoAlteracaoOperacao[]>>(
+    getStorageKey(STORAGE_KEYS.OPERACOES_HISTORICO, empresaId),
+    {}
+  );
+}
+
+function writeOperacoesHistorico(empresaId: string, historico: Record<string, HistoricoAlteracaoOperacao[]>) {
+  writeLocalStorage(getStorageKey(STORAGE_KEYS.OPERACOES_HISTORICO, empresaId), historico);
+}
+
+function persistirHistoricoOperacao(empresaId: string, operacaoId: string, historico?: HistoricoAlteracaoOperacao[]) {
+  if (!historico) {
+    return;
+  }
+
+  const historicos = readOperacoesHistorico(empresaId);
+  historicos[operacaoId] = historico;
+  writeOperacoesHistorico(empresaId, historicos);
+}
+
+function readOperacoesAtivo(empresaId: string) {
+  return readLocalStorage<Record<string, boolean>>(
+    getStorageKey(STORAGE_KEYS.OPERACOES_ATIVO, empresaId),
+    {}
+  );
+}
+
+function writeOperacoesAtivo(empresaId: string, ativos: Record<string, boolean>) {
+  writeLocalStorage(getStorageKey(STORAGE_KEYS.OPERACOES_ATIVO, empresaId), ativos);
+}
+
+function persistirAtivoOperacao(empresaId: string, operacaoId: string, ativo: boolean | undefined) {
+  const ativos = readOperacoesAtivo(empresaId);
+  ativos[operacaoId] = ativo !== false;
+  writeOperacoesAtivo(empresaId, ativos);
+}
+
+function aplicarHistoricoOperacoes(empresaId: string, operacoes: Operacao[]) {
+  const historicos = readOperacoesHistorico(empresaId);
+  const ativos = readOperacoesAtivo(empresaId);
+
+  return operacoes.map((operacao) => ({
+    ...operacao,
+    ativo: typeof operacao.ativo === 'boolean' ? operacao.ativo : (ativos[operacao.id] ?? true),
+    historicoAlteracoes: operacao.historicoAlteracoes ?? historicos[operacao.id] ?? []
+  }));
+}
+
+export async function initializeStorage(empresaId: string): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) {
+    initializeLocalStorage(empresaId);
+  }
+}
+
+function toBaseRow(scope: TenantScope, base: Base): BaseRow {
   return {
     id: base.id,
+    empresa_id: scope.empresaId,
     codigo: base.codigo,
     nome: base.nome,
     endereco: base.endereco,
@@ -105,16 +191,25 @@ function fromBaseRow(row: BaseRow): Base {
   };
 }
 
-function toOperacaoRow(operacao: Operacao): OperacaoRow {
+function toOperacaoRow(
+  scope: Required<Pick<TenantScope, 'empresaId' | 'usuarioId'>> & Pick<TenantScope, 'usuarioNome'>,
+  operacao: Operacao,
+  options?: {
+    includeHistory?: boolean;
+    includeAtivo?: boolean;
+  }
+): OperacaoRow {
+  const includeHistory = options?.includeHistory ?? true;
+  const includeAtivo = options?.includeAtivo ?? true;
+
   return {
     id: operacao.id,
+    empresa_id: scope.empresaId,
+    usuario_id: scope.usuarioId,
+    ...(includeAtivo ? { ativo: operacao.ativo !== false } : {}),
     nome_operacao: operacao.nomeOperacao,
-    user_id: operacao.userId,
-    created_at: operacao.createdAt,
-    data_aprovacao: operacao.dataAprovacao ?? null,
-    criado_por: operacao.criadoPor,
-    editado_por: operacao.editadoPor ?? null,
-    data_edicao: operacao.dataEdicao ?? null,
+    criado_por: operacao.criadoPor || scope.usuarioNome || 'Usuário',
+    editado_por: operacao.editadoPor ?? scope.usuarioNome ?? null,
     codigo_origem: operacao.codigoOrigem,
     codigo_destino: operacao.codigoDestino,
     endereco_origem: operacao.enderecoOrigem ?? null,
@@ -136,20 +231,46 @@ function toOperacaoRow(operacao: Operacao): OperacaoRow {
     margem_original_percent: operacao.margemOriginalPercent,
     margem_atual_percent: operacao.margemAtualPercent ?? null,
     lucro_atual: operacao.lucroAtual ?? null,
-    status: operacao.status
+    ...(includeHistory ? { historico_alteracoes: operacao.historicoAlteracoes ?? [] } : {}),
+    status: operacao.status,
+    data_aprovacao: operacao.dataAprovacao ?? null,
+    criado_em: operacao.createdAt,
+    atualizado_em: operacao.dataEdicao ?? operacao.createdAt
   };
+}
+
+function parseHistoricoAlteracoes(valor: OperacaoRow['historico_alteracoes']): HistoricoAlteracaoOperacao[] {
+  if (!valor) {
+    return [];
+  }
+
+  if (Array.isArray(valor)) {
+    return valor;
+  }
+
+  if (typeof valor === 'string') {
+    try {
+      const parsed = JSON.parse(valor);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
 }
 
 function fromOperacaoRow(row: OperacaoRow): Operacao {
   return {
     id: row.id,
     nomeOperacao: row.nome_operacao,
-    userId: row.user_id,
-    createdAt: row.created_at,
+    ativo: row.ativo,
+    userId: row.usuario_id,
+    createdAt: row.criado_em,
     dataAprovacao: row.data_aprovacao ?? undefined,
     criadoPor: row.criado_por,
     editadoPor: row.editado_por ?? undefined,
-    dataEdicao: row.data_edicao ?? undefined,
+    dataEdicao: row.atualizado_em,
     codigoOrigem: row.codigo_origem,
     codigoDestino: row.codigo_destino,
     enderecoOrigem: row.endereco_origem ?? undefined,
@@ -171,13 +292,14 @@ function fromOperacaoRow(row: OperacaoRow): Operacao {
     margemOriginalPercent: row.margem_original_percent,
     margemAtualPercent: row.margem_atual_percent ?? undefined,
     lucroAtual: row.lucro_atual ?? undefined,
+    historicoAlteracoes: parseHistoricoAlteracoes(row.historico_alteracoes),
     status: row.status
   };
 }
 
-function toCustoGlobalRow(custos: CustoGlobal): CustoGlobalRow {
+function toCustoGlobalRow(empresaId: string, custos: CustoGlobal): CustoGlobalRow {
   return {
-    id: DEFAULT_CUSTOS_ID,
+    empresa_id: empresaId,
     preco_diesel_litro: custos.precoDieselLitro,
     custo_motorista_km: custos.custoMotoristaKm,
     pedagio_medio_km: custos.pedagioMedioKm,
@@ -207,79 +329,19 @@ function parseCsvBases(csvData: CsvRow[]): Base[] {
     .filter((base) => base.codigo && base.endereco);
 }
 
-async function seedSupabaseIfNeeded() {
-  if (!supabase) {
-    return;
-  }
-
-  const [{ count: basesCount, error: basesError }, { count: operacoesCount, error: operacoesError }] = await Promise.all([
-    supabase.from('bases').select('id', { count: 'exact', head: true }),
-    supabase.from('operacoes').select('id', { count: 'exact', head: true })
-  ]);
-
-  if (basesError) {
-    throw basesError;
-  }
-
-  if (operacoesError) {
-    throw operacoesError;
-  }
-
-  if (!basesCount) {
-    const { error } = await supabase.from('bases').insert(mockBases.map(toBaseRow));
-    if (error) {
-      throw error;
-    }
-  }
-
-  if (!operacoesCount) {
-    const { error } = await supabase.from('operacoes').insert(mockOperacoes.map(toOperacaoRow));
-    if (error) {
-      throw error;
-    }
-  }
-
-  const { data: custosRow, error: custosError } = await supabase
-    .from('custos_globais')
-    .select('*')
-    .eq('id', DEFAULT_CUSTOS_ID)
-    .maybeSingle<CustoGlobalRow>();
-
-  if (custosError) {
-    throw custosError;
-  }
-
-  if (!custosRow) {
-    const { error } = await supabase.from('custos_globais').insert(toCustoGlobalRow(mockCustosGlobais));
-    if (error) {
-      throw error;
-    }
-  }
-}
-
-export function initializeStorage(): Promise<void> {
-  if (!initializationPromise) {
-    initializationPromise = (async () => {
-      if (!isSupabaseConfigured || !supabase) {
-        localInitializeStorage();
-        return;
-      }
-
-      await seedSupabaseIfNeeded();
-    })();
-  }
-
-  return initializationPromise;
-}
-
-export async function getBases(): Promise<Base[]> {
-  await initializeStorage();
+export async function getBases(empresaId: string): Promise<Base[]> {
+  await initializeStorage(empresaId);
 
   if (!isSupabaseConfigured || !supabase) {
-    return readLocalStorage(STORAGE_KEYS.BASES, mockBases);
+    return readLocalStorage(getStorageKey(STORAGE_KEYS.BASES, empresaId), mockBases);
   }
 
-  const { data, error } = await supabase.from('bases').select('*').order('codigo');
+  const { data, error } = await supabase
+    .from('bases')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .order('codigo');
+
   if (error) {
     throw error;
   }
@@ -287,17 +349,17 @@ export async function getBases(): Promise<Base[]> {
   return (data as BaseRow[]).map(fromBaseRow);
 }
 
-export async function createBase(base: Base): Promise<Base> {
-  await initializeStorage();
+export async function createBase(empresaId: string, base: Base): Promise<Base> {
+  await initializeStorage(empresaId);
 
   if (!isSupabaseConfigured || !supabase) {
-    const bases = readLocalStorage<Base[]>(STORAGE_KEYS.BASES, mockBases);
-    const nextBases = [...bases, base];
-    localStorage.setItem(STORAGE_KEYS.BASES, JSON.stringify(nextBases));
+    const key = getStorageKey(STORAGE_KEYS.BASES, empresaId);
+    const bases = readLocalStorage<Base[]>(key, mockBases);
+    writeLocalStorage(key, [...bases, base]);
     return base;
   }
 
-  const { error } = await supabase.from('bases').insert(toBaseRow(base));
+  const { error } = await supabase.from('bases').insert(toBaseRow({ empresaId }, base));
   if (error) {
     throw error;
   }
@@ -305,64 +367,77 @@ export async function createBase(base: Base): Promise<Base> {
   return base;
 }
 
-export async function deleteBase(id: string): Promise<void> {
-  await initializeStorage();
+export async function deleteBase(empresaId: string, id: string): Promise<void> {
+  await initializeStorage(empresaId);
 
   if (!isSupabaseConfigured || !supabase) {
-    const bases = readLocalStorage<Base[]>(STORAGE_KEYS.BASES, mockBases).filter((base) => base.id !== id);
-    localStorage.setItem(STORAGE_KEYS.BASES, JSON.stringify(bases));
+    const key = getStorageKey(STORAGE_KEYS.BASES, empresaId);
+    const bases = readLocalStorage<Base[]>(key, mockBases).filter((base) => base.id !== id);
+    writeLocalStorage(key, bases);
     return;
   }
 
-  const { error } = await supabase.from('bases').delete().eq('id', id);
+  const { error } = await supabase.from('bases').delete().eq('empresa_id', empresaId).eq('id', id);
   if (error) {
     throw error;
   }
 }
 
-export async function importBasesFromCSV(csvData: CsvRow[]): Promise<Base[]> {
-  await initializeStorage();
-
+export async function importBasesFromCSV(empresaId: string, csvData: CsvRow[]): Promise<Base[]> {
+  await initializeStorage(empresaId);
   const bases = parseCsvBases(csvData);
 
   if (!isSupabaseConfigured || !supabase) {
-    const basesExistentes = readLocalStorage<Base[]>(STORAGE_KEYS.BASES, mockBases);
+    const key = getStorageKey(STORAGE_KEYS.BASES, empresaId);
+    const basesExistentes = readLocalStorage<Base[]>(key, mockBases);
     const novasBases = [...basesExistentes, ...bases];
-    localStorage.setItem(STORAGE_KEYS.BASES, JSON.stringify(novasBases));
+    writeLocalStorage(key, novasBases);
     return novasBases;
   }
 
   if (bases.length > 0) {
-    const { error } = await supabase.from('bases').upsert(bases.map(toBaseRow), { onConflict: 'id' });
+    const { error } = await supabase
+      .from('bases')
+      .upsert(bases.map((base) => toBaseRow({ empresaId }, base)), { onConflict: 'empresa_id,codigo' });
+
     if (error) {
       throw error;
     }
   }
 
-  return getBases();
+  return getBases(empresaId);
 }
 
-export async function getOperacoes(): Promise<Operacao[]> {
-  await initializeStorage();
+export async function getOperacoes(empresaId: string): Promise<Operacao[]> {
+  await initializeStorage(empresaId);
 
   if (!isSupabaseConfigured || !supabase) {
-    return readLocalStorage(STORAGE_KEYS.OPERACOES, mockOperacoes);
+    return aplicarHistoricoOperacoes(
+      empresaId,
+      readLocalStorage(getStorageKey(STORAGE_KEYS.OPERACOES, empresaId), mockOperacoes)
+    );
   }
 
-  const { data, error } = await supabase.from('operacoes').select('*').order('created_at', { ascending: true });
+  const { data, error } = await supabase
+    .from('operacoes')
+    .select('*')
+    .eq('empresa_id', empresaId)
+    .order('criado_em', { ascending: true });
+
   if (error) {
     throw error;
   }
 
-  return (data as OperacaoRow[]).map(fromOperacaoRow);
+  return aplicarHistoricoOperacoes(empresaId, (data as OperacaoRow[]).map(fromOperacaoRow));
 }
 
-export async function saveOperacao(operacao: Operacao): Promise<Operacao> {
-  await initializeStorage();
+export async function saveOperacao(scope: Required<Pick<TenantScope, 'empresaId' | 'usuarioId'>> & Pick<TenantScope, 'usuarioNome'>, operacao: Operacao): Promise<Operacao> {
+  await initializeStorage(scope.empresaId);
 
   if (!isSupabaseConfigured || !supabase) {
-    const operacoes = readLocalStorage<Operacao[]>(STORAGE_KEYS.OPERACOES, mockOperacoes);
-    const index = operacoes.findIndex((op) => op.id === operacao.id);
+    const key = getStorageKey(STORAGE_KEYS.OPERACOES, scope.empresaId);
+    const operacoes = readLocalStorage<Operacao[]>(key, mockOperacoes);
+    const index = operacoes.findIndex((item) => item.id === operacao.id);
 
     if (index >= 0) {
       operacoes[index] = operacao;
@@ -370,69 +445,125 @@ export async function saveOperacao(operacao: Operacao): Promise<Operacao> {
       operacoes.push(operacao);
     }
 
-    localStorage.setItem(STORAGE_KEYS.OPERACOES, JSON.stringify(operacoes));
+    writeLocalStorage(key, operacoes);
+    persistirHistoricoOperacao(scope.empresaId, operacao.id, operacao.historicoAlteracoes);
+    persistirAtivoOperacao(scope.empresaId, operacao.id, operacao.ativo);
     return operacao;
   }
 
-  const { error } = await supabase.from('operacoes').upsert(toOperacaoRow(operacao), { onConflict: 'id' });
+  let error = null;
+  let includeHistory = true;
+  let includeAtivo = true;
+
+  for (let tentativa = 0; tentativa < 3; tentativa += 1) {
+    const attempt = await supabase
+      .from('operacoes')
+      .upsert(toOperacaoRow(scope, operacao, { includeHistory, includeAtivo }), { onConflict: 'id' });
+
+    error = attempt.error;
+
+    if (!error) {
+      break;
+    }
+
+    const errorMessage = error.message.toLowerCase();
+    let retry = false;
+
+    if (includeHistory && errorMessage.includes('historico_alteracoes')) {
+      includeHistory = false;
+      retry = true;
+    }
+
+    if (includeAtivo && errorMessage.includes('ativo')) {
+      includeAtivo = false;
+      retry = true;
+    }
+
+    if (!retry) {
+      break;
+    }
+  }
+
   if (error) {
     throw error;
   }
 
+  persistirHistoricoOperacao(scope.empresaId, operacao.id, operacao.historicoAlteracoes);
+  persistirAtivoOperacao(scope.empresaId, operacao.id, operacao.ativo);
   return operacao;
 }
 
-export async function deleteOperacao(id: string): Promise<void> {
-  await initializeStorage();
+export async function deleteOperacao(empresaId: string, id: string): Promise<void> {
+  await initializeStorage(empresaId);
 
   if (!isSupabaseConfigured || !supabase) {
-    const operacoes = readLocalStorage<Operacao[]>(STORAGE_KEYS.OPERACOES, mockOperacoes).filter((op) => op.id !== id);
-    localStorage.setItem(STORAGE_KEYS.OPERACOES, JSON.stringify(operacoes));
+    const key = getStorageKey(STORAGE_KEYS.OPERACOES, empresaId);
+    const operacoes = readLocalStorage<Operacao[]>(key, mockOperacoes).filter((item) => item.id !== id);
+    writeLocalStorage(key, operacoes);
+
+    const historicos = readOperacoesHistorico(empresaId);
+    delete historicos[id];
+    writeOperacoesHistorico(empresaId, historicos);
+
+    const ativos = readOperacoesAtivo(empresaId);
+    delete ativos[id];
+    writeOperacoesAtivo(empresaId, ativos);
     return;
   }
 
-  const { error } = await supabase.from('operacoes').delete().eq('id', id);
+  const { error } = await supabase.from('operacoes').delete().eq('empresa_id', empresaId).eq('id', id);
   if (error) {
     throw error;
   }
+
+  const historicos = readOperacoesHistorico(empresaId);
+  delete historicos[id];
+  writeOperacoesHistorico(empresaId, historicos);
+
+  const ativos = readOperacoesAtivo(empresaId);
+  delete ativos[id];
+  writeOperacoesAtivo(empresaId, ativos);
 }
 
-export async function getCustosGlobais(): Promise<CustoGlobal> {
-  await initializeStorage();
+export async function getCustosGlobais(empresaId: string): Promise<CustoGlobal> {
+  await initializeStorage(empresaId);
 
   if (!isSupabaseConfigured || !supabase) {
-    return readLocalStorage(STORAGE_KEYS.CUSTOS_GLOBAIS, mockCustosGlobais);
+    return readLocalStorage(getStorageKey(STORAGE_KEYS.CUSTOS_GLOBAIS, empresaId), mockCustosGlobais);
   }
 
   const { data, error } = await supabase
     .from('custos_globais')
     .select('*')
-    .eq('id', DEFAULT_CUSTOS_ID)
-    .single<CustoGlobalRow>();
+    .eq('empresa_id', empresaId)
+    .single();
 
   if (error) {
     throw error;
   }
 
-  return fromCustoGlobalRow(data);
+  return fromCustoGlobalRow(data as CustoGlobalRow);
 }
 
-export async function updateCustosGlobais(custos: Partial<CustoGlobal>): Promise<CustoGlobal> {
-  await initializeStorage();
+export async function updateCustosGlobais(empresaId: string, custos: Partial<CustoGlobal>): Promise<CustoGlobal> {
+  await initializeStorage(empresaId);
 
-  const custosAtuais = await getCustosGlobais();
+  const atuais = await getCustosGlobais(empresaId);
   const novosCustos = {
-    ...custosAtuais,
+    ...atuais,
     ...custos,
     dataAtualizacao: new Date().toISOString()
   };
 
   if (!isSupabaseConfigured || !supabase) {
-    localStorage.setItem(STORAGE_KEYS.CUSTOS_GLOBAIS, JSON.stringify(novosCustos));
+    writeLocalStorage(getStorageKey(STORAGE_KEYS.CUSTOS_GLOBAIS, empresaId), novosCustos);
     return novosCustos;
   }
 
-  const { error } = await supabase.from('custos_globais').upsert(toCustoGlobalRow(novosCustos), { onConflict: 'id' });
+  const { error } = await supabase
+    .from('custos_globais')
+    .upsert(toCustoGlobalRow(empresaId, novosCustos), { onConflict: 'empresa_id' });
+
   if (error) {
     throw error;
   }

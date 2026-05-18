@@ -2,28 +2,30 @@ import React, { useState } from 'react';
 import { Input } from '../components/Forms/Input';
 import { Button } from '../components/Forms/Button';
 import { useCustosGlobais } from '../hooks/useCustosGlobais';
-import { formatarDataHora } from '../utils/formatadores';
+import { useAuth } from '../contexts/AuthContext';
+import { formatarDataHora, formatarMoedaInputBR, formatarMoedaParaCampo, parseMoedaInputBR } from '../utils/formatadores';
 import { Save, RefreshCw } from 'lucide-react';
 
 const CustosGlobais: React.FC = () => {
+  const { canEdit, isSuspended } = useAuth();
   const { custos, loading, error, atualizarCustos } = useCustosGlobais();
   
-  const [diesel, setDiesel] = useState(custos.precoDieselLitro.toString());
-  const [motorista, setMotorista] = useState(custos.custoMotoristaKm.toString());
-  const [pedagio, setPedagio] = useState(custos.pedagioMedioKm.toString());
+  const [diesel, setDiesel] = useState(formatarMoedaParaCampo(custos.precoDieselLitro));
+  const [motorista, setMotorista] = useState(formatarMoedaParaCampo(custos.custoMotoristaKm));
+  const [pedagio, setPedagio] = useState(formatarMoedaParaCampo(custos.pedagioMedioKm));
   const [salvo, setSalvo] = useState(false);
 
   React.useEffect(() => {
-    setDiesel(custos.precoDieselLitro.toString());
-    setMotorista(custos.custoMotoristaKm.toString());
-    setPedagio(custos.pedagioMedioKm.toString());
+    setDiesel(formatarMoedaParaCampo(custos.precoDieselLitro));
+    setMotorista(formatarMoedaParaCampo(custos.custoMotoristaKm));
+    setPedagio(formatarMoedaParaCampo(custos.pedagioMedioKm));
   }, [custos]);
 
   const handleSalvar = async () => {
     await atualizarCustos({
-      precoDieselLitro: Number(diesel),
-      custoMotoristaKm: Number(motorista),
-      pedagioMedioKm: Number(pedagio)
+      precoDieselLitro: parseMoedaInputBR(diesel),
+      custoMotoristaKm: parseMoedaInputBR(motorista),
+      pedagioMedioKm: parseMoedaInputBR(pedagio)
     });
     setSalvo(true);
     setTimeout(() => setSalvo(false), 3000);
@@ -45,32 +47,41 @@ const CustosGlobais: React.FC = () => {
           Ao alterar, as margens atuais de todas as rotas aprovadas serão recalculadas automaticamente.
         </p>
 
+        {isSuspended && (
+          <div className="mb-6 rounded-lg border border-amber-800 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+            Empresa suspensa: os custos continuam visíveis, mas alterações estão temporariamente desativadas.
+          </div>
+        )}
+
         <div className="space-y-4">
           <Input
             label="Preço do Diesel (R$/litro)"
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="numeric"
             value={diesel}
-            onChange={(e) => setDiesel(e.target.value)}
+            onChange={(e) => setDiesel(formatarMoedaInputBR(e.target.value))}
             icon={<span className="text-gray-500">R$</span>}
+            disabled={!canEdit}
           />
 
           <Input
             label="Custo do Motorista (R$/km)"
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="numeric"
             value={motorista}
-            onChange={(e) => setMotorista(e.target.value)}
+            onChange={(e) => setMotorista(formatarMoedaInputBR(e.target.value))}
             icon={<span className="text-gray-500">R$</span>}
+            disabled={!canEdit}
           />
 
           <Input
             label="Pedágio Médio (R$/km)"
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="numeric"
             value={pedagio}
-            onChange={(e) => setPedagio(e.target.value)}
+            onChange={(e) => setPedagio(formatarMoedaInputBR(e.target.value))}
             icon={<span className="text-gray-500">R$</span>}
+            disabled={!canEdit}
           />
         </div>
 
@@ -79,7 +90,7 @@ const CustosGlobais: React.FC = () => {
             Última atualização: {formatarDataHora(custos.dataAtualizacao)}
           </p>
           
-          <Button onClick={handleSalvar}>
+          <Button onClick={handleSalvar} disabled={!canEdit}>
             <div className="flex items-center gap-2">
               <Save className="w-4 h-4" />
               Salvar Alterações

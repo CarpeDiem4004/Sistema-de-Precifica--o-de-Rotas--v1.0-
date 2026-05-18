@@ -14,9 +14,23 @@ export interface CustoGlobal {
   dataAtualizacao: string;
 }
 
+export interface HistoricoAlteracaoCampo {
+  campo: string;
+  antes: string;
+  depois: string;
+  direcao: 'aumentou' | 'diminuiu' | 'alterado';
+}
+
+export interface HistoricoAlteracaoOperacao {
+  data: string;
+  usuario: string;
+  alteracoes: HistoricoAlteracaoCampo[];
+}
+
 export interface Operacao {
   id: string;
   nomeOperacao: string;
+  ativo?: boolean;
   userId: string;
   createdAt: string;
   dataAprovacao?: string;
@@ -54,6 +68,7 @@ export interface Operacao {
   // Resultados atuais (para monitoramento)
   margemAtualPercent?: number;
   lucroAtual?: number;
+  historicoAlteracoes?: HistoricoAlteracaoOperacao[];
   
   status: 'rascunho' | 'aprovada';
 }
