@@ -28,6 +28,11 @@ export function getSubdomainTenantSlug(hostname = getBrowserLocation().hostname)
     return null;
   }
 
+  // URLs do Vercel (*.vercel.app) nunca são subdomínios de tenant
+  if (hostname.endsWith('.vercel.app')) {
+    return null;
+  }
+
   const parts = hostname.split('.');
   return parts.length > 2 ? parts[0] : null;
 }
@@ -56,6 +61,14 @@ export function buildTenantPath(slug: string | null | undefined, path: string): 
   }
 
   if (!slug) {
+    return normalizedPath;
+  }
+
+  // Evita duplicidade: se o path já começa com /slug ou /slug/
+  if (
+    normalizedPath === `/${slug}` ||
+    normalizedPath.startsWith(`/${slug}/`)
+  ) {
     return normalizedPath;
   }
 
