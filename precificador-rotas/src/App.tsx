@@ -171,8 +171,8 @@ function AppRoutes() {
       <Route path="/nova-operacao" element={<ProtectedRoute><AppLayout><NovaOperacao /></AppLayout></ProtectedRoute>} />
       <Route path="/editar-operacao/:id" element={<ProtectedRoute><AppLayout><NovaOperacao /></AppLayout></ProtectedRoute>} />
       <Route path="/lista-rotas" element={<ProtectedRoute><AppLayout><ListaRotas /></AppLayout></ProtectedRoute>} />
-      <Route path="/:tenant/registro-execucao" element={<ProtectedRoute><AppLayout><RegistroExecucao /></AppLayout></ProtectedRoute>} />
-      <Route path="/:tenant/relatorio-rentabilidade" element={<ProtectedRoute><AppLayout><RelatorioRentabilidade /></AppLayout></ProtectedRoute>} />
+      <Route path="/:slug/registro-execucao" element={<ProtectedRoute><AppLayout><RegistroExecucao /></AppLayout></ProtectedRoute>} />
+      <Route path="/:slug/relatorio-rentabilidade" element={<ProtectedRoute><AppLayout><RelatorioRentabilidade /></AppLayout></ProtectedRoute>} />
       <Route path="/custos-globais" element={<ProtectedRoute><AppLayout><CustosGlobais /></AppLayout></ProtectedRoute>} />
       <Route path="/bases" element={<ProtectedRoute><AppLayout><BasesConfig /></AppLayout></ProtectedRoute>} />
       <Route path="/equipe" element={<ProtectedRoute><AppLayout><Equipe /></AppLayout></ProtectedRoute>} />

@@ -24,6 +24,13 @@ export function RedefinirSenha() {
       return;
     }
 
+    // Detecta erros no hash da URL (ex: otp_expired, access_denied)
+    const hash = window.location.hash;
+    if (hash.includes('error=') || hash.includes('error_code=')) {
+      setStatus('erro-sessao');
+      return;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setStatus('pronto');
