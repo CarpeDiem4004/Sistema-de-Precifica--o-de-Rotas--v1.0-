@@ -68,7 +68,7 @@ export const RelatorioRentabilidade: React.FC = () => {
         .order('data_execucao', { ascending: false });
 
       if (err) throw err;
-      setData((rows as Execucao[]) ?? []);
+      setData((rows as unknown as Execucao[]) ?? []);
     } catch (err) {
       const e = err as { message?: string };
       setError(e.message || 'Erro ao carregar os dados.');
